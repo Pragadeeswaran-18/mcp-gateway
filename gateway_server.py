@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import typing as t
+import os
+from dotenv import load_dotenv
 
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
@@ -28,6 +30,7 @@ from mcp import server, types
 from mcp.client.session import ClientSession
 
 logger = logging.getLogger(__name__)
+load_dotenv()
 
 
 async def create_gateway_server(remote_app: ClientSession) -> server.Server[object]:
@@ -184,6 +187,6 @@ async def run_gateway(remote_url: str, headers: dict[str, str] | None = None):
 
 
 if __name__ == "__main__":
-    # Example: connect to GitHub MCP server over streamable HTTP
-    github_mcp_url = "https://api.githubcopilot.com/mcp"  # replace if needed
-    asyncio.run(run_gateway(github_mcp_url, headers={"Authorization": "Bearer "}))
+    github_mcp_url = "https://api.githubcopilot.com/mcp"  
+    github_auth_token = os.environ.get("GITHUB_AUTH_TOKEN")
+    asyncio.run(run_gateway(github_mcp_url, headers={"Authorization": f"Bearer {github_auth_token}"}))
