@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
-from starlette.responses import Response
+from starlette.responses import Response, JSONResponse
+from starlette.requests import Request
 import uvicorn
 
 from mcp import server, types
@@ -16,20 +17,6 @@ from mcp.server import sse
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
-
-"""Create an MCP server that proxies requests through an MCP client.
-
-This server is created independent of any transport mechanism.
-"""
-
-import logging
-import typing as t
-
-from mcp import server, types
-from mcp.client.session import ClientSession
-
-logger = logging.getLogger(__name__)
 load_dotenv()
 
 
@@ -153,40 +140,55 @@ async def create_gateway_server(remote_app: ClientSession) -> server.Server[obje
 
 
 
+async def expose_available_tools(request: Request) -> JSONResponse:
+    gateway_app = getattr(request.app.state, "gateway_app", None)
+    if not gateway_app:
+        return JSONResponse({"error": "Gateway not initialized"}, status_code=503)
+
+    try:
+        tools_result = await gateway_app.request_handlers[types.ListToolsRequest](None)
+        return JSONResponse(tools_result.model_dump_json())
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 async def run_gateway(remote_url: str, headers: dict[str, str] | None = None):
     async with streamablehttp_client(url=remote_url, headers=headers) as (read, write, _):
         async with ClientSession(read, write) as remote_session:
+
             gateway_app = await create_gateway_server(remote_session)
+
 
             mcp_transport = sse.SseServerTransport("/messages/")
 
-            async def handle_sse(request):
-                async with mcp_transport.connect_sse(
-                    request.scope,
-                    request.receive,
-                    request._send,
-                ) as (read_sse, write_sse):
-                    await gateway_app.run(
-                        read_sse,
-                        write_sse,
-                        gateway_app.create_initialization_options(),
-                    )
+            async def handle_sse(request: Request):
+                async with mcp_transport.connect_sse(request.scope, request.receive, request._send) as (read_sse, write_sse):
+                    await gateway_app.run(read_sse, write_sse, gateway_app.create_initialization_options())
                 return Response()
 
-            routes = [
+
+            api_app = Starlette(routes=[
+                Route("/tools", expose_available_tools, methods=["GET"])
+            ])
+            
+            api_app.state.gateway_app = gateway_app
+
+
+            app = Starlette(routes=[
                 Route("/sse", endpoint=handle_sse),
                 Mount("/messages/", app=mcp_transport.handle_post_message),
-            ]
+                Mount("/config", app=api_app)
+            ])
 
-            starlette_app = Starlette(routes=routes)
-            config = uvicorn.Config(starlette_app, host="127.0.0.1", port=9000, log_level="info")
+
+            config = uvicorn.Config(app, host="127.0.0.1", port=9000, log_level="info")
             server = uvicorn.Server(config)
             await server.serve()
 
 
-
-
 if __name__ == "__main__":
-    github_mcp_url = "https://api.githubcopilot.com/mcp"  
+    github_mcp_url = "https://api.githubcopilot.com/mcp"
     github_auth_token = os.environ.get("GITHUB_AUTH_TOKEN")
+    if not github_auth_token:
+        raise RuntimeError("GITHUB_AUTH_TOKEN environment variable is missing!")
     asyncio.run(run_gateway(github_mcp_url, headers={"Authorization": f"Bearer {github_auth_token}"}))
