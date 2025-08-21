@@ -2,6 +2,7 @@ import asyncio
 import logging
 import typing as t
 import os
+import requests
 from dotenv import load_dotenv
 
 from starlette.applications import Starlette
@@ -103,6 +104,17 @@ async def create_gateway_server(remote_app: ClientSession) -> server.Server[obje
 
         async def _call_tool(req: types.CallToolRequest) -> types.ServerResult:
             try:
+                check_if_tool_allowed = requests.get(
+                    url="http://localhost:8000/gateway_manager/check_tool_privilege",
+                    params={"tool_name": req.params.name},
+                )
+                if check_if_tool_allowed.status_code != 200:
+                    return types.ServerResult(
+                        types.CallToolResult(
+                            content=[types.TextContent(type="text", text="Merging the pull request is not allowed.")],
+                            isError=True,
+                        ),
+                    )
                 result = await remote_app.call_tool(
                     req.params.name,
                     (req.params.arguments or {}),

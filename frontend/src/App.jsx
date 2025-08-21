@@ -30,7 +30,7 @@ function App() {
 
   function fetchTools() {
     request({
-      "url": "/gateway_manager/list_tools",
+      "url": "/gateway_manager/list_tools/",
       "onSuccess": render_tools_layout
     })
   };

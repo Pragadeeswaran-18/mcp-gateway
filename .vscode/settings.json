@@ -1,4 +1,5 @@
 {
     "justMyCode": false,
-    "debugpy.debugJustMyCode": false
+    "debugpy.debugJustMyCode": false,
+    "pythonPath": "${workspaceFolder}/venv/bin/python",
 }

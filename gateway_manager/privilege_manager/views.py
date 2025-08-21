@@ -9,3 +9,11 @@ def list_tools(request):
         return JsonResponse(data["tools"], safe=False)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+    
+def check_tool_privilege(request):
+    tool_name = request.GET.get("tool_name")
+    if not tool_name:
+        return JsonResponse({"error": "Tool name is required"}, status=400)
+    if tool_name in ["create_issue", "delete_file", "merge_pull_request"]:
+        return JsonResponse({"allowed": False}, status=403)
+    return JsonResponse({"allowed": True}, status=200)
