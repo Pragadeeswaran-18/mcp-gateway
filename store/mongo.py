@@ -55,7 +55,7 @@ class MongoStore:
         await self._client.close()
 
     async def list_rules(self) -> list[ToolRule]:
-        return await self._rules().find()
+        return await self._rules().filter()
 
     async def get_rule(self, tool: str) -> ToolRule | None:
         return await self._rules().get(tool)
@@ -67,7 +67,7 @@ class MongoStore:
         return await self._rules().delete(tool)
 
     async def list_users(self) -> list[User]:
-        return await self._users().find()
+        return await self._users().filter()
 
     async def put_user(self, user: User) -> None:
         await self._users().put(user)
@@ -79,7 +79,7 @@ class MongoStore:
         await self._approvals().insert(req)
 
     async def list_approvals(self, status: str | None = None) -> list[ApprovalRequest]:
-        return await self._approvals().find({"status": status} if status else None)
+        return await self._approvals().filter({"status": status} if status else None)
 
     async def resolve_approval(self, approval_id: str, approved: bool, by: str) -> bool:
         return await self._approvals().update_where(
@@ -97,4 +97,4 @@ class MongoStore:
         await self._audit().insert(event)
 
     async def query_audit(self, filters: dict[str, Any], limit: int = 100) -> list[AuditEvent]:
-        return await self._audit().find(filters, sort=[("ts", -1)], limit=limit)
+        return await self._audit().filter(filters, sort=[("ts", -1)], limit=limit)

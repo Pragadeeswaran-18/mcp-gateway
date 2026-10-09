@@ -92,7 +92,7 @@ class Repository[M: BaseModel]:
         )
         return from_doc(self._model, doc) if doc else None
 
-    async def find(
+    async def filter(
         self,
         flt: Mapping[str, Any] | None = None,
         *,
