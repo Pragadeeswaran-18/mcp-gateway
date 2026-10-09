@@ -38,8 +38,11 @@ make admin      # uv run python -m admin.app         (port 8081)
 
 ## MongoDB and tenancy
 
-Point `MONGO_URL` at any MongoDB 6+: `make mongo` (needs Docker), a local Community install,
-or a free Atlas cluster. `store/orm.py` is a small tenant-scoped mapper: every document carries
+Point `MONGO_URL` at any MongoDB 6+. Without Docker, `scripts/mongo.py` manages a local
+install under `MONGO_HOME` (default `%LOCALAPPDATA%\mongodb`): `make mongo-start`,
+`make mongo-stop`, and `make shell` (starts MongoDB if needed and opens `mongosh` on
+`MONGO_DB`; extra args go to mongosh, e.g.
+`uv run python scripts/mongo.py shell --eval "db.rules.find()"`). `make mongo` uses Docker instead. `store/orm.py` is a small tenant-scoped mapper: every document carries
 `tenant_id` and an `_id` of `<tenant>:<key>`, every query is wrapped with the tenant clause,
 and callers cannot mention `tenant_id`/`_id` in filters. The active tenant comes from
 `store.tenant.use_tenant()`; with none set, storage raises `TenantError`.

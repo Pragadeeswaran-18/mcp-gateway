@@ -1,4 +1,4 @@
-.PHONY: sync upstream gateway admin mongo token test lint
+.PHONY: sync upstream gateway admin mongo mongo-start mongo-stop shell token test lint
 
 sync:
 	uv sync
@@ -24,3 +24,12 @@ admin:
 
 mongo:
 	docker compose up -d mongo
+
+mongo-start:
+	uv run python scripts/mongo.py start
+
+mongo-stop:
+	uv run python scripts/mongo.py stop
+
+shell:
+	uv run python scripts/mongo.py shell
