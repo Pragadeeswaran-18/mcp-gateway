@@ -1,4 +1,4 @@
-.PHONY: sync upstream gateway token test lint
+.PHONY: sync upstream gateway admin mongo token test lint
 
 sync:
 	uv sync
@@ -18,3 +18,9 @@ test:
 
 lint:
 	uv run ruff check . && uv run ruff format --check .
+
+admin:
+	uv run python -m admin.app
+
+mongo:
+	docker compose up -d mongo

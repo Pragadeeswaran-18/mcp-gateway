@@ -5,8 +5,17 @@ calls with FastMCP's `create_proxy()`, and enforces policy in FastMCP middleware
 per-tool allow/deny/require_approval, argument constraints, per-user pinned arguments hidden
 from the model, and an audit log tied to a human and an agent.
 
-**Status:** scaffold only. `gateway/` is stubbed (`NotImplementedError`); the upstream server,
-JWT minting script and tests are real. The tests fail until the gateway is implemented.
+**Status:** scaffold only. `gateway/`, `admin/` and `store/` are stubbed
+(`NotImplementedError`); the upstream server, JWT minting script, pydantic models and tests are
+real. The tests fail until those are implemented.
+
+## Components
+
+- `gateway/` - the MCP proxy + policy middleware (agents connect here).
+- `admin/` - FastAPI admin server where an admin configures rules, users and approvals and
+  reads the audit log (`make admin`, port `ADMIN_PORT`, bearer `ADMIN_TOKEN`).
+- `store/` - `PolicyStore` interface and a MongoDB implementation (`make mongo` starts it with
+  Docker). The admin writes config here; the gateway reads it.
 
 ## Setup
 
@@ -22,6 +31,11 @@ make upstream    # uv run python -m upstream.server   (port 9000)
 make gateway     # uv run python -m gateway.server    (GATEWAY_PORT, default 8080)
 ```
 
+```
+make mongo      # docker compose up -d mongo
+make admin      # uv run python -m admin.app         (port 8081)
+```
+
 ## Mint a token
 
 ```
@@ -35,6 +49,8 @@ uv run python scripts/mint_jwt.py alice     # or bob, admin
 uv run pytest
 ```
 
+`tests/test_admin.py` needs MongoDB running (`make mongo`); it uses a throwaway database.
+
 The test fixtures start the upstream in-process and the gateway as a subprocess with a
 temporary audit DB (`GATEWAY_AUDIT_DB`). The audit table contract is documented in
 `gateway/audit.py`.
@@ -46,3 +62,7 @@ temporary audit DB (`GATEWAY_AUDIT_DB`). The audit table contract is documented 
 - Per-user `inputSchema` editing in `on_list_tools` (docs only show tag filtering).
 - The proxy tool-list cache (`cache_ttl`) must not cache per-user output.
 - Hidden tools must also be denied in `on_call_tool`.
+- How the gateway picks up admin changes (poll, change streams, or per-request read) and what
+  it does when MongoDB is down (fail closed).
+- The scenario tests still read the audit log from SQLite (`gateway/audit.py`); decide whether
+  audit moves fully to MongoDB and update `tests/conftest.py` accordingly.

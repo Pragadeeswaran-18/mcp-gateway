@@ -5,13 +5,16 @@ description = "MCP policy gateway prototype"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.143.0",
     "fastmcp==3.4.8",
     "pyjwt>=2.15.1",
+    "pymongo>=4.13",
     "pyyaml>=6.0.3",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.10",
