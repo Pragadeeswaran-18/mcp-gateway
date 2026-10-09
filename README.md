@@ -26,6 +26,8 @@ cp .env.example .env     # then edit; export the variables into your shell
 
 ## Run
 
+`make` loads `.env` automatically. On Windows without `make`, see the Makefile for the equivalent `uv run ...` commands.
+
 ```
 make upstream    # uv run python -m upstream.server   (port 9000)
 make gateway     # uv run python -m gateway.server    (GATEWAY_PORT, default 8080)

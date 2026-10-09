@@ -1,3 +1,7 @@
+# Load .env (KEY=VALUE lines) into every recipe's environment, if present.
+-include .env
+export
+
 .PHONY: sync upstream gateway admin mongo mongo-start mongo-stop shell token test lint
 
 sync:
