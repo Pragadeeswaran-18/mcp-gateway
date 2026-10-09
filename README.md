@@ -15,7 +15,7 @@ real. The tests fail until those are implemented.
 - `admin/` - FastAPI admin server where an admin configures rules, users and approvals and
   reads the audit log (`make admin`, port `ADMIN_PORT`, RS256 admin JWT). Implemented so far: tenant
   resolution, admin auth and `GET /users`; the other routes are stubs. Call it with a tenant
-  subdomain, e.g. `curl -H "Authorization: Bearer $ADMIN_TOKEN" http://acme.localhost:8081/users`.
+  subdomain, e.g. `curl -H "Authorization: Bearer <token from make admin-token>" http://acme.localhost:8081/users`.
 - `common/` - code shared by both servers: Pydantic models, settings, and `common/store/` (storage
   interface, MongoDB store, tenant ORM, tenant context and subdomain middleware). The gateway and
   admin must import shared code from here, never from each other.
