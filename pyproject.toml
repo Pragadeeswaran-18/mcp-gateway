@@ -1,0 +1,26 @@
+[project]
+name = "policy-gateway"
+version = "0.1.0"
+description = "MCP policy gateway prototype"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp==3.4.8",
+    "pyjwt>=2.15.1",
+    "pyyaml>=6.0.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.10",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = [".", "scripts"]
+
+[tool.ruff]
+line-length = 100

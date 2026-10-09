@@ -1,0 +1,20 @@
+# Example rules only. Evaluation semantics are defined by gateway/policy.py.
+default: deny
+
+tools:
+  read_orders:
+    allow: [alice, bob]
+
+  send_message:
+    allow: [alice]
+    pin:
+      phone_number:
+        value: "ref:USER_A_PHONE"
+        on_conflict: reject
+    constraints:
+      message:
+        reject_pattern: '\d{9,}'   # any run of 9 or more digits
+
+  delete_record:
+    require_approval: [alice]
+    deny: [bob]
