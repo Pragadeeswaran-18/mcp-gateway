@@ -7,7 +7,7 @@ import uvicorn
 from fastapi import Depends, FastAPI
 
 from admin.auth import require_admin
-from admin.routers import approvals, audit, revocations, rules, users
+from admin.routers import approvals, audit, health, login, revocations, rules, users
 from common.config import Settings
 from common.store.mongo import MongoStore
 from common.store.resolve import TenantMiddleware
@@ -36,7 +36,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="policy-gateway admin", lifespan=lifespan)
     app.state.store = store
     guard = [Depends(require_admin)]
-    for module in (rules, users, approvals, audit, revocations):
+    for module in (rules, users, approvals, audit, revocations, health, login):
         app.include_router(module.router, dependencies=guard)
     app.add_middleware(TenantMiddleware, registry=registry, base_domain=settings.base_domain)
     return app

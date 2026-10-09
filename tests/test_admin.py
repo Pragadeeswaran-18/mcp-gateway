@@ -153,3 +153,14 @@ async def test_audit_is_read_only(app, store: MongoStore):
         assert (await c.get("/audit", headers=AUTH)).status_code == 200
         assert (await c.post("/audit", json={}, headers=AUTH)).status_code == 405
         assert (await c.delete("/audit", headers=AUTH)).status_code == 405
+
+
+async def test_public_decorator_exempts_only_marked_routes(app, store: MongoStore):
+    await store.tenant_registry().create("acme")
+    async with client(app) as c:
+        res = await c.get("/healthz")  # no token, marked @public
+        assert (res.status_code, res.json()) == (200, {"status": "ok"})
+        assert (await c.get("/users")).status_code == 401  # same app, unmarked route
+        assert (await c.get("/rules")).status_code == 401
+    async with client(app, "nope") as c:
+        assert (await c.get("/healthz")).status_code == 404  # tenant is still required

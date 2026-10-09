@@ -1,9 +1,29 @@
 """Authentication for the admin API: RS256 JWTs verified with a public key."""
 
+from collections.abc import Callable
+from typing import Any
+
 import jwt
 from fastapi import HTTPException, Request
 
 from common.config import Settings
+
+_PUBLIC_ATTR = "__admin_public__"
+
+
+def public[F: Callable[..., Any]](func: F) -> F:
+    """Mark a route handler as exempt from require_admin.
+
+    Apply it *under* the route decorator so the registered endpoint carries the mark:
+
+        @router.post("/login")
+        @public
+        async def login(...): ...
+
+    Tenant resolution still applies; only the admin-token check is skipped.
+    """
+    setattr(func, _PUBLIC_ATTR, True)
+    return func
 
 
 def _unauthorized(detail: str = "invalid admin token") -> HTTPException:
@@ -16,9 +36,12 @@ async def require_admin(request: Request) -> str:
     The bearer token must be an RS256 JWT signed by the admin private key, with `exp`,
     `sub`, `aud` equal to ADMIN_JWT_AUDIENCE and `role == "admin"`. Only RS256 is accepted,
     which blocks algorithm-confusion attacks (an HS256 token "signed" with the public key).
-    Gateway end-user tokens carry no admin audience/role and are rejected. Fails closed
-    with 503 when no public key is configured or it cannot be parsed.
+    Gateway end-user tokens carry no admin audience/role and are rejected. Handlers
+    marked with @public skip the check. Fails closed with 503 when no public key is
+    configured or it cannot be parsed.
     """
+    if getattr(request.scope.get("endpoint"), _PUBLIC_ATTR, False):
+        return "anonymous"
     settings = Settings.from_env()
     if settings.admin_public_key is None:
         raise HTTPException(503, "admin auth is not configured")
