@@ -6,6 +6,14 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class Tenant(BaseModel):
+    """A tenant: numeric id plus the subdomain that resolves to it."""
+
+    tenant_id: int
+    subdomain: str
+    active: bool = True
+
+
 class Pin(BaseModel):
     """An argument forced to a value (or "ref:NAME" secret) and hidden from the model."""
 

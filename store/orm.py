@@ -39,7 +39,7 @@ def check_filter(obj: Any) -> None:
             check_filter(item)
 
 
-def scope_filter(tenant_id: str, flt: Mapping[str, Any] | None) -> dict[str, Any]:
+def scope_filter(tenant_id: int, flt: Mapping[str, Any] | None) -> dict[str, Any]:
     """Return `flt` confined to `tenant_id`."""
     check_filter(flt or {})
     if not flt:
@@ -47,12 +47,12 @@ def scope_filter(tenant_id: str, flt: Mapping[str, Any] | None) -> dict[str, Any
     return {"$and": [{"tenant_id": tenant_id}, dict(flt)]}
 
 
-def doc_id(tenant_id: str, key: str) -> str:
+def doc_id(tenant_id: int, key: str) -> str:
     """Namespaced primary key."""
     return f"{tenant_id}:{key}"
 
 
-def to_doc(tenant_id: str, key: str, item: BaseModel) -> dict[str, Any]:
+def to_doc(tenant_id: int, key: str, item: BaseModel) -> dict[str, Any]:
     """Serialise a model into a stored document."""
     data = item.model_dump()
     if _RESERVED & data.keys():
@@ -72,7 +72,7 @@ class Repository[M: BaseModel]:
         self,
         collection: AsyncCollection,
         model: type[M],
-        tenant_id: str,
+        tenant_id: int,
         key_field: str | None,
     ) -> None:
         """`key_field` names the model attribute used as the key; None means generated ids."""
@@ -148,7 +148,7 @@ class AppendOnlyRepository[M: BaseModel](Repository[M]):
 class TenantScope:
     """A database handle bound to one tenant; hands out repositories."""
 
-    def __init__(self, db: AsyncDatabase, tenant_id: str) -> None:
+    def __init__(self, db: AsyncDatabase, tenant_id: int) -> None:
         self._db = db
         self.tenant_id = validate_tenant_id(tenant_id)
 
@@ -170,7 +170,7 @@ class TenantDB:
     def __init__(self, db: AsyncDatabase) -> None:
         self.db = db
 
-    def scope(self, tenant_id: str) -> TenantScope:
+    def scope(self, tenant_id: int) -> TenantScope:
         return TenantScope(self.db, tenant_id)
 
     async def ensure_indexes(

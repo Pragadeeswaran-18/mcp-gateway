@@ -42,8 +42,12 @@ Point `MONGO_URL` at any MongoDB 6+: `make mongo` (needs Docker), a local Commun
 or a free Atlas cluster. `store/orm.py` is a small tenant-scoped mapper: every document carries
 `tenant_id` and an `_id` of `<tenant>:<key>`, every query is wrapped with the tenant clause,
 and callers cannot mention `tenant_id`/`_id` in filters. The active tenant comes from
-`store.tenant.use_tenant()`; with none set, storage raises `TenantError`. The admin auth
-dependency and the gateway's `on_initialize` must set it from the caller's identity.
+`store.tenant.use_tenant()`; with none set, storage raises `TenantError`.
+
+Tenant ids are positive integers. Each request's tenant is resolved from the Host subdomain
+(`acme.<BASE_DOMAIN>` -> `tenants` collection -> numeric id) by `store.resolve.TenantMiddleware`,
+a pure ASGI middleware to wrap the admin app and the gateway's HTTP app; unknown or inactive
+subdomains get 404. Register tenants with `TenantRegistry.create("acme")`.
 
 ## Mint a token
 
