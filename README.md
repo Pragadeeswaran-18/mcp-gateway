@@ -5,7 +5,7 @@ calls with FastMCP's `create_proxy()`, and enforces policy in FastMCP middleware
 per-tool allow/deny/require_approval, argument constraints, per-user pinned arguments hidden
 from the model, and an audit log tied to a human and an agent.
 
-**Status:** scaffold only. `gateway/`, `admin/` and `store/` are stubbed
+**Status:** scaffold only. `gateway/`, `admin/` and `common/store/` are stubbed
 (`NotImplementedError`); the upstream server, JWT minting script, pydantic models and tests are
 real. The tests fail until those are implemented.
 
@@ -13,8 +13,13 @@ real. The tests fail until those are implemented.
 
 - `gateway/` - the MCP proxy + policy middleware (agents connect here).
 - `admin/` - FastAPI admin server where an admin configures rules, users and approvals and
-  reads the audit log (`make admin`, port `ADMIN_PORT`, bearer `ADMIN_TOKEN`).
-- `store/` - `PolicyStore` interface and a MongoDB implementation (`make mongo` starts it with
+  reads the audit log (`make admin`, port `ADMIN_PORT`, bearer `ADMIN_TOKEN`). Implemented so far: tenant
+  resolution, admin auth and `GET /users`; the other routes are stubs. Call it with a tenant
+  subdomain, e.g. `curl -H "Authorization: Bearer $ADMIN_TOKEN" http://acme.localhost:8081/users`.
+- `common/` - code shared by both servers: Pydantic models, settings, and `common/store/` (storage
+  interface, MongoDB store, tenant ORM, tenant context and subdomain middleware). The gateway and
+  admin must import shared code from here, never from each other.
+- `common/store/` - `PolicyStore` interface and a MongoDB implementation (`make mongo` starts it with
   Docker). The admin writes config here; the gateway reads it.
 
 ## Setup
@@ -44,7 +49,7 @@ Point `MONGO_URL` at any MongoDB 6+. Without Docker, `scripts/mongo.py` manages 
 install under `MONGO_HOME` (default `%LOCALAPPDATA%\mongodb`): `make mongo-start`,
 `make mongo-stop`, and `make shell` (starts MongoDB if needed and opens `mongosh` on
 `MONGO_DB`; extra args go to mongosh, e.g.
-`uv run python scripts/mongo.py shell --eval "db.rules.find()"`). `make mongo` uses Docker instead. `store/orm.py` is a small tenant-scoped mapper: every document carries
+`uv run python scripts/mongo.py shell --eval "db.rules.find()"`). `make mongo` uses Docker instead. `common/store/orm.py` is a small tenant-scoped mapper: every document carries
 `tenant_id` and an `_id` of `<tenant>:<key>`, every query is wrapped with the tenant clause,
 and callers cannot mention `tenant_id`/`_id` in filters. The active tenant comes from
 `store.tenant.use_tenant()`; with none set, storage raises `TenantError`.

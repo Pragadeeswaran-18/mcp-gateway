@@ -3,8 +3,8 @@
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError
 
-from admin.models import Tenant
-from store.tenant import TenantError
+from common.models import Tenant
+from common.store.tenant import TenantError
 
 
 class TenantRegistry:

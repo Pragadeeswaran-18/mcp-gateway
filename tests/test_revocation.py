@@ -5,9 +5,9 @@ from datetime import UTC, datetime, timedelta
 import jwt
 from mint_jwt import mint
 
-from admin.models import RevokedToken
-from store.mongo import MongoStore
-from store.tenant import use_tenant
+from common.models import RevokedToken
+from common.store.mongo import MongoStore
+from common.store.tenant import use_tenant
 
 SECRET = "x" * 32
 

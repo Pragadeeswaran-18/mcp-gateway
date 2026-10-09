@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.asynchronous.database import AsyncDatabase
 
-from store.tenant import TenantError, validate_tenant_id
+from common.store.tenant import TenantError, validate_tenant_id
 
 _RESERVED = {"tenant_id", "_id"}
 _FORBIDDEN_OPERATORS = {"$where", "$function", "$accumulator"}

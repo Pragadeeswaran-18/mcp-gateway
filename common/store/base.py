@@ -2,11 +2,15 @@
 
 from typing import Any, Protocol
 
-from admin.models import ApprovalRequest, AuditEvent, RevokedToken, ToolRule, User
+from common.models import ApprovalRequest, AuditEvent, RevokedToken, ToolRule, User
 
 
 class PolicyStore(Protocol):
     """Async persistence for rules, users, approvals and the audit log."""
+
+    def tenant_registry(self) -> Any:
+        """Return the TenantRegistry used to resolve subdomains to tenant ids."""
+        ...
 
     async def init(self) -> None:
         """Create collections and indexes (unique tool name / username, audit by human+ts)."""

@@ -9,9 +9,10 @@ from typing import Any
 
 from pymongo import AsyncMongoClient
 
-from admin.models import ApprovalRequest, AuditEvent, RevokedToken, ToolRule, User
-from store.orm import Repository, TenantDB
-from store.tenant import current_tenant
+from common.models import ApprovalRequest, AuditEvent, RevokedToken, ToolRule, User
+from common.store.orm import Repository, TenantDB
+from common.store.registry import TenantRegistry
+from common.store.tenant import current_tenant
 
 INDEXES = {
     "approvals": [[("status", 1)]],
@@ -26,6 +27,10 @@ class MongoStore:
         """Create the client; it connects lazily."""
         self._client: AsyncMongoClient = AsyncMongoClient(url, serverSelectionTimeoutMS=5000)
         self._tdb = TenantDB(self._client[db_name])
+
+    def tenant_registry(self) -> TenantRegistry:
+        """The global subdomain -> tenant id registry (not tenant-scoped)."""
+        return TenantRegistry(self._tdb.db)
 
     def _scope(self):
         return self._tdb.scope(current_tenant())
@@ -67,7 +72,7 @@ class MongoStore:
         return await self._rules().delete(tool)
 
     async def list_users(self) -> list[User]:
-        return await self._users().filter()
+        return await self._users().filter(sort=[("username", 1)])
 
     async def put_user(self, user: User) -> None:
         await self._users().put(user)

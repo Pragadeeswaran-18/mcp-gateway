@@ -17,7 +17,7 @@ import uvicorn
 from fastmcp import Client
 from mint_jwt import mint
 
-from store.mongo import MongoStore
+from common.store.mongo import MongoStore
 from upstream import server as upstream_server
 
 ROOT = Path(__file__).resolve().parent.parent

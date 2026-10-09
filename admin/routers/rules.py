@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from admin.models import ToolRule
+from common.models import ToolRule
 
 router = APIRouter(prefix="/rules", tags=["rules"])
 

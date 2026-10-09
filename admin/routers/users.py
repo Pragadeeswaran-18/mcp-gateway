@@ -1,16 +1,20 @@
 """CRUD for users."""
 
-from fastapi import APIRouter
+from typing import Annotated
 
-from admin.models import User
+from fastapi import APIRouter, Depends
+
+from admin.deps import get_store
+from common.models import User
+from common.store.base import PolicyStore
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("")
-async def list_users() -> list[User]:
-    """List all users."""
-    raise NotImplementedError
+async def list_users(store: Annotated[PolicyStore, Depends(get_store)]) -> list[User]:
+    """List all users of the request's tenant (resolved from the subdomain), by username."""
+    return await store.list_users()
 
 
 @router.put("/{username}")

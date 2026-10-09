@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from admin.models import ApprovalRequest
+from common.models import ApprovalRequest
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 

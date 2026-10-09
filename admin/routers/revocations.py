@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from admin.models import RevokedToken
+from common.models import RevokedToken
 
 router = APIRouter(prefix="/revocations", tags=["revocations"])
 

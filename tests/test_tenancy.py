@@ -5,12 +5,12 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 
-from admin.models import ApprovalRequest, AuditEvent, Tenant, ToolRule
-from store.mongo import MongoStore
-from store.orm import AppendOnlyError, check_filter, from_doc, scope_filter, to_doc
-from store.registry import TenantRegistry
-from store.resolve import TenantMiddleware, subdomain_from_host
-from store.tenant import TenantError, current_tenant, use_tenant, validate_tenant_id
+from common.models import ApprovalRequest, AuditEvent, Tenant, ToolRule
+from common.store.mongo import MongoStore
+from common.store.orm import AppendOnlyError, check_filter, from_doc, scope_filter, to_doc
+from common.store.registry import TenantRegistry
+from common.store.resolve import TenantMiddleware, subdomain_from_host
+from common.store.tenant import TenantError, current_tenant, use_tenant, validate_tenant_id
 
 # --- pure unit tests -------------------------------------------------------------------
 

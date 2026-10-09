@@ -9,8 +9,8 @@ import os
 import re
 from typing import Protocol
 
-from admin.models import Tenant
-from store.tenant import use_tenant
+from common.models import Tenant
+from common.store.tenant import use_tenant
 
 _LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 

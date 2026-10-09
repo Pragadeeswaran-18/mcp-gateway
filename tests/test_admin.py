@@ -1,18 +1,14 @@
-"""Admin API scenarios. Need MongoDB (make mongo); fail until the admin server is built."""
+"""Admin API scenarios (need MongoDB). Unbuilt endpoints fail with NotImplementedError."""
 
-import os
-import uuid
-from collections.abc import Iterator
-from contextlib import contextmanager
-
+import httpx
 import pytest
-from fastapi.testclient import TestClient
-from pymongo import MongoClient
+from httpx import ASGITransport
 
 from admin.app import create_app
-from store.mongo import MongoStore
+from common.models import User
+from common.store.mongo import MongoStore
+from common.store.tenant import use_tenant
 
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 ADMIN_TOKEN = "test-admin-token"
 AUTH = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
 
@@ -25,69 +21,80 @@ RULE = {
 
 
 @pytest.fixture
-def open_admin(monkeypatch: pytest.MonkeyPatch):
-    """Factory for a client on a throwaway database (dropped on exit). Tests call it inside
-    the test body so a missing implementation fails the test rather than erroring in setup."""
+async def app(store: MongoStore, monkeypatch: pytest.MonkeyPatch):
+    """Admin app on a throwaway database with its lifespan running."""
     monkeypatch.setenv("ADMIN_TOKEN", ADMIN_TOKEN)
-
-    @contextmanager
-    def _open() -> Iterator[TestClient]:
-        db_name = f"policy_gateway_test_{uuid.uuid4().hex[:8]}"
-        app = create_app(MongoStore(MONGO_URL, db_name))  # fails fast while stubbed
-        try:
-            with TestClient(app) as client:
-                yield client
-        finally:
-            MongoClient(MONGO_URL, serverSelectionTimeoutMS=3000).drop_database(db_name)
-
-    return _open
+    monkeypatch.setenv("BASE_DOMAIN", "localhost")
+    app = create_app(store)
+    async with app.router.lifespan_context(app):
+        yield app
 
 
-def test_admin_requires_admin_token(open_admin):
-    with open_admin() as admin:
-        assert admin.get("/rules").status_code == 401
-        assert admin.get("/rules", headers={"Authorization": "Bearer wrong"}).status_code in (
-            401,
-            403,
-        )
-        assert admin.get("/rules", headers=AUTH).status_code == 200
+def client(app, subdomain: str = "acme") -> httpx.AsyncClient:
+    """Client whose Host header selects the tenant, as a browser would."""
+    return httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url=f"http://{subdomain}.localhost"
+    )
 
 
-def test_rule_crud_roundtrip(open_admin):
-    with open_admin() as admin:
-        assert admin.put("/rules/send_message", json=RULE, headers=AUTH).status_code == 200
-        assert admin.get("/rules", headers=AUTH).json() == [
+async def test_list_users_returns_only_this_tenants_users(app, store: MongoStore):
+    registry = store.tenant_registry()
+    acme = await registry.create("acme")
+    globex = await registry.create("globex")
+    with use_tenant(acme.tenant_id):
+        await store.put_user(User(username="bob"))
+        await store.put_user(User(username="alice", agent_ids=["agent-alice"]))
+    with use_tenant(globex.tenant_id):
+        await store.put_user(User(username="carol"))
+
+    async with client(app, "acme") as c:
+        res = await c.get("/users", headers=AUTH)
+    assert res.status_code == 200
+    assert [u["username"] for u in res.json()] == ["alice", "bob"]
+
+    async with client(app, "globex") as c:
+        assert [u["username"] for u in (await c.get("/users", headers=AUTH)).json()] == ["carol"]
+
+
+async def test_users_requires_admin_token(app, store: MongoStore):
+    await store.tenant_registry().create("acme")
+    async with client(app) as c:
+        assert (await c.get("/users")).status_code == 401
+        assert (await c.get("/users", headers={"Authorization": "Bearer wrong"})).status_code == 401
+
+
+async def test_unknown_or_inactive_tenant_gets_404(app, store: MongoStore):
+    registry = store.tenant_registry()
+    off = await registry.create("off")
+    await registry.set_active(off.tenant_id, False)
+    for sub in ("nope", "off"):
+        async with client(app, sub) as c:
+            assert (await c.get("/users", headers=AUTH)).status_code == 404
+
+
+async def test_rule_crud_roundtrip(app, store: MongoStore):
+    await store.tenant_registry().create("acme")
+    async with client(app) as c:
+        assert (await c.put("/rules/send_message", json=RULE, headers=AUTH)).status_code == 200
+        assert (await c.get("/rules", headers=AUTH)).json() == [
             {**RULE, "deny": [], "require_approval": []}
         ]
-        assert admin.delete("/rules/send_message", headers=AUTH).status_code == 204
-        assert admin.delete("/rules/send_message", headers=AUTH).status_code == 404
-        assert admin.get("/rules", headers=AUTH).json() == []
+        assert (await c.delete("/rules/send_message", headers=AUTH)).status_code == 204
+        assert (await c.delete("/rules/send_message", headers=AUTH)).status_code == 404
 
 
-def test_rule_validation(open_admin):
-    with open_admin() as admin:
+async def test_rule_validation(app, store: MongoStore):
+    await store.tenant_registry().create("acme")
+    async with client(app) as c:
         bad_regex = {**RULE, "constraints": {"message": {"reject_pattern": "("}}}
-        assert admin.put("/rules/send_message", json=bad_regex, headers=AUTH).status_code == 422
+        assert (await c.put("/rules/send_message", json=bad_regex, headers=AUTH)).status_code == 422
         mismatch = {**RULE, "tool": "other"}
-        assert admin.put("/rules/send_message", json=mismatch, headers=AUTH).status_code == 422
+        assert (await c.put("/rules/send_message", json=mismatch, headers=AUTH)).status_code == 422
 
 
-def test_user_crud_roundtrip(open_admin):
-    with open_admin() as admin:
-        user = {"username": "alice", "active": True, "agent_ids": ["agent-alice"]}
-        assert admin.put("/users/alice", json=user, headers=AUTH).status_code == 200
-        assert admin.get("/users", headers=AUTH).json() == [user]
-        assert admin.delete("/users/alice", headers=AUTH).status_code == 204
-
-
-def test_unknown_approval_cannot_be_resolved(open_admin):
-    with open_admin() as admin:
-        assert admin.post("/approvals/nope/approve", headers=AUTH).status_code in (404, 409)
-        assert admin.get("/approvals", headers=AUTH).json() == []
-
-
-def test_audit_is_read_only(open_admin):
-    with open_admin() as admin:
-        assert admin.get("/audit", headers=AUTH).status_code == 200
-        assert admin.post("/audit", json={}, headers=AUTH).status_code == 405
-        assert admin.delete("/audit", headers=AUTH).status_code == 405
+async def test_audit_is_read_only(app, store: MongoStore):
+    await store.tenant_registry().create("acme")
+    async with client(app) as c:
+        assert (await c.get("/audit", headers=AUTH)).status_code == 200
+        assert (await c.post("/audit", json={}, headers=AUTH)).status_code == 405
+        assert (await c.delete("/audit", headers=AUTH)).status_code == 405

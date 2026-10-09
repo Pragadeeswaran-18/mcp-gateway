@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from admin.models import AuditEvent
+from common.models import AuditEvent
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 

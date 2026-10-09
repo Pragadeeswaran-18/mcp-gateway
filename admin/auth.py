@@ -1,13 +1,25 @@
 """Authentication for the admin API."""
 
-from fastapi import Request
+import hmac
+
+from fastapi import HTTPException, Request
+
+from common.config import Settings
 
 
 async def require_admin(request: Request) -> str:
-    """FastAPI dependency: return the admin identity or raise HTTPException(401/403).
+    """FastAPI dependency: return the admin identity or raise HTTPException.
 
-    Must: validate the Authorization bearer token (static ADMIN_TOKEN for the prototype,
-    or an admin-role JWT) using a constant-time comparison. Gateway end-user tokens must
-    never be accepted here.
+    Prototype scheme: a static bearer token (ADMIN_TOKEN), compared in constant time.
+    Fails closed with 503 when ADMIN_TOKEN is not configured. Gateway end-user JWTs are
+    never accepted here.
     """
-    raise NotImplementedError
+    expected = Settings.from_env().admin_token
+    if expected is None:
+        raise HTTPException(status_code=503, detail="admin auth is not configured")
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not hmac.compare_digest(token.encode(), expected.encode()):
+        raise HTTPException(
+            status_code=401, detail="invalid admin token", headers={"WWW-Authenticate": "Bearer"}
+        )
+    return "admin"
