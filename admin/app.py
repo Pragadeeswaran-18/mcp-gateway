@@ -9,12 +9,11 @@ from fastapi import Depends, FastAPI
 from admin.auth import require_admin
 from admin.routers import approvals, audit, revocations, rules, users
 from common.config import Settings
-from common.store.base import PolicyStore
 from common.store.mongo import MongoStore
 from common.store.resolve import TenantMiddleware
 
 
-def create_app(store: PolicyStore | None = None) -> FastAPI:
+def create_app() -> FastAPI:
     """Build the admin app.
 
     Every request is resolved to a tenant from its Host subdomain (TenantMiddleware) and
@@ -22,7 +21,7 @@ def create_app(store: PolicyStore | None = None) -> FastAPI:
     the request context.
     """
     settings = Settings.from_env()
-    store = store or MongoStore(settings.mongo_url, settings.mongo_db)
+    store = MongoStore(settings.mongo_url, settings.mongo_db)
     registry = store.tenant_registry()
 
     @asynccontextmanager

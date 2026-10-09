@@ -2,7 +2,7 @@
 -include .env
 export
 
-.PHONY: sync upstream gateway admin mongo mongo-start mongo-stop shell token test lint
+.PHONY: sync upstream gateway admin admin-keys admin-token mongo mongo-start mongo-stop shell token test lint
 
 sync:
 	uv sync
@@ -37,3 +37,9 @@ mongo-stop:
 
 shell:
 	uv run python scripts/mongo.py shell
+
+admin-keys:
+	uv run python scripts/admin_keys.py genkeys
+
+admin-token:
+	uv run python scripts/admin_keys.py token

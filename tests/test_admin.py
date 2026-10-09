@@ -1,7 +1,16 @@
 """Admin API scenarios (need MongoDB). Unbuilt endpoints fail with NotImplementedError."""
 
+import base64
+import hashlib
+import hmac
+import json
+import time
+
 import httpx
+import jwt
 import pytest
+from admin_keys import generate_keypair, mint_admin
+from conftest import MONGO_URL
 from httpx import ASGITransport
 
 from admin.app import create_app
@@ -9,8 +18,25 @@ from common.models import User
 from common.store.mongo import MongoStore
 from common.store.tenant import use_tenant
 
-ADMIN_TOKEN = "test-admin-token"
-AUTH = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
+PRIVATE_PEM, PUBLIC_PEM = generate_keypair()
+OTHER_PRIVATE_PEM, _ = generate_keypair()
+
+
+def _hs256_with_public_key(claims: dict) -> str:
+    def b64(raw: bytes) -> bytes:
+        return base64.urlsafe_b64encode(raw).rstrip(b"=")
+
+    head = b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    body = b64(json.dumps(claims).encode())
+    sig = hmac.new(PUBLIC_PEM, head + b"." + body, hashlib.sha256).digest()
+    return (head + b"." + body + b"." + b64(sig)).decode()
+
+
+def bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+AUTH = bearer(mint_admin(PRIVATE_PEM))
 
 RULE = {
     "tool": "send_message",
@@ -23,9 +49,13 @@ RULE = {
 @pytest.fixture
 async def app(store: MongoStore, monkeypatch: pytest.MonkeyPatch):
     """Admin app on a throwaway database with its lifespan running."""
-    monkeypatch.setenv("ADMIN_TOKEN", ADMIN_TOKEN)
+    monkeypatch.setenv("ADMIN_JWT_PUBLIC_KEY", PUBLIC_PEM.decode())
+    monkeypatch.setenv("ADMIN_JWT_AUDIENCE", "policy-gateway-admin")
     monkeypatch.setenv("BASE_DOMAIN", "localhost")
-    app = create_app(store)
+    # create_app() builds its own store from the environment; point it at the test database
+    monkeypatch.setenv("MONGO_URL", MONGO_URL)
+    monkeypatch.setenv("MONGO_DB", store._tdb.db.name)
+    app = create_app()
     async with app.router.lifespan_context(app):
         yield app
 
@@ -56,11 +86,36 @@ async def test_list_users_returns_only_this_tenants_users(app, store: MongoStore
         assert [u["username"] for u in (await c.get("/users", headers=AUTH)).json()] == ["carol"]
 
 
-async def test_users_requires_admin_token(app, store: MongoStore):
-    await store.tenant_registry().create("acme")
+async def _status(app, headers=None) -> int:
     async with client(app) as c:
-        assert (await c.get("/users")).status_code == 401
-        assert (await c.get("/users", headers={"Authorization": "Bearer wrong"})).status_code == 401
+        return (await c.get("/users", headers=headers)).status_code
+
+
+async def test_admin_token_validation(app, store: MongoStore):
+    await store.tenant_registry().create("acme")
+    now = int(time.time())
+    claims = {"sub": "admin", "role": "admin", "aud": "policy-gateway-admin", "exp": now + 600}
+
+    def rs256(key, **override):
+        return bearer(jwt.encode({**claims, **override}, key, algorithm="RS256"))
+
+    assert await _status(app, AUTH) == 200
+    assert await _status(app) == 401  # no token
+    assert await _status(app, bearer("garbage")) == 401
+    assert await _status(app, rs256(OTHER_PRIVATE_PEM)) == 401  # signed by another key
+    assert await _status(app, rs256(PRIVATE_PEM, exp=now - 10)) == 401  # expired
+    assert await _status(app, rs256(PRIVATE_PEM, aud="someone-else")) == 401
+    assert await _status(app, rs256(PRIVATE_PEM, role="user")) == 403  # not an admin
+    # algorithm confusion: HS256 token "signed" with the public key must not verify
+    # (PyJWT refuses to build one, so assemble it by hand as an attacker would.)
+    assert await _status(app, bearer(_hs256_with_public_key(claims))) == 401
+
+
+async def test_admin_fails_closed_without_a_public_key(app, store: MongoStore, monkeypatch):
+    await store.tenant_registry().create("acme")
+    monkeypatch.delenv("ADMIN_JWT_PUBLIC_KEY")
+    monkeypatch.delenv("ADMIN_JWT_PUBLIC_KEY_FILE", raising=False)
+    assert await _status(app, AUTH) == 503
 
 
 async def test_unknown_or_inactive_tenant_gets_404(app, store: MongoStore):

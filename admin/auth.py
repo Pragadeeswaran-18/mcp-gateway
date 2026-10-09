@@ -1,25 +1,42 @@
-"""Authentication for the admin API."""
+"""Authentication for the admin API: RS256 JWTs verified with a public key."""
 
-import hmac
-
+import jwt
 from fastapi import HTTPException, Request
 
 from common.config import Settings
 
 
-async def require_admin(request: Request) -> str:
-    """FastAPI dependency: return the admin identity or raise HTTPException.
+def _unauthorized(detail: str = "invalid admin token") -> HTTPException:
+    return HTTPException(401, detail, headers={"WWW-Authenticate": "Bearer"})
 
-    Prototype scheme: a static bearer token (ADMIN_TOKEN), compared in constant time.
-    Fails closed with 503 when ADMIN_TOKEN is not configured. Gateway end-user JWTs are
-    never accepted here.
+
+async def require_admin(request: Request) -> str:
+    """FastAPI dependency: return the admin's `sub` or raise HTTPException.
+
+    The bearer token must be an RS256 JWT signed by the admin private key, with `exp`,
+    `sub`, `aud` equal to ADMIN_JWT_AUDIENCE and `role == "admin"`. Only RS256 is accepted,
+    which blocks algorithm-confusion attacks (an HS256 token "signed" with the public key).
+    Gateway end-user tokens carry no admin audience/role and are rejected. Fails closed
+    with 503 when no public key is configured or it cannot be parsed.
     """
-    expected = Settings.from_env().admin_token
-    if expected is None:
-        raise HTTPException(status_code=503, detail="admin auth is not configured")
+    settings = Settings.from_env()
+    if settings.admin_public_key is None:
+        raise HTTPException(503, "admin auth is not configured")
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
-    if scheme.lower() != "bearer" or not hmac.compare_digest(token.encode(), expected.encode()):
-        raise HTTPException(
-            status_code=401, detail="invalid admin token", headers={"WWW-Authenticate": "Bearer"}
+    if scheme.lower() != "bearer" or not token:
+        raise _unauthorized("missing bearer token")
+    try:
+        claims = jwt.decode(
+            token,
+            settings.admin_public_key,
+            algorithms=["RS256"],
+            audience=settings.admin_audience,
+            options={"require": ["exp", "sub", "aud"]},
         )
-    return "admin"
+    except (jwt.InvalidKeyError, ValueError) as exc:
+        raise HTTPException(503, "admin auth is misconfigured") from exc
+    except jwt.PyJWTError as exc:
+        raise _unauthorized() from exc
+    if claims.get("role") != "admin":
+        raise HTTPException(403, "admin role required")
+    return str(claims["sub"])

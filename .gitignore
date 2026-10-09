@@ -15,3 +15,7 @@ venv/
 .env
 *.db
 *.sqlite3
+
+# Admin signing keys
+keys/
+*.pem

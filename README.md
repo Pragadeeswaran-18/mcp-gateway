@@ -13,7 +13,7 @@ real. The tests fail until those are implemented.
 
 - `gateway/` - the MCP proxy + policy middleware (agents connect here).
 - `admin/` - FastAPI admin server where an admin configures rules, users and approvals and
-  reads the audit log (`make admin`, port `ADMIN_PORT`, bearer `ADMIN_TOKEN`). Implemented so far: tenant
+  reads the audit log (`make admin`, port `ADMIN_PORT`, RS256 admin JWT). Implemented so far: tenant
   resolution, admin auth and `GET /users`; the other routes are stubs. Call it with a tenant
   subdomain, e.g. `curl -H "Authorization: Bearer $ADMIN_TOKEN" http://acme.localhost:8081/users`.
 - `common/` - code shared by both servers: Pydantic models, settings, and `common/store/` (storage
@@ -58,6 +58,14 @@ Tenant ids are positive integers. Each request's tenant is resolved from the Hos
 (`acme.<BASE_DOMAIN>` -> `tenants` collection -> numeric id) by `store.resolve.TenantMiddleware`,
 a pure ASGI middleware to wrap the admin app and the gateway's HTTP app; unknown or inactive
 subdomains get 404. Register tenants with `TenantRegistry.create("acme")`.
+
+## Admin authentication
+
+The admin API accepts only RS256 JWTs (`exp`, `sub`, `aud=ADMIN_JWT_AUDIENCE`, `role=admin`)
+verified with the public key in `ADMIN_JWT_PUBLIC_KEY` (PEM) or `ADMIN_JWT_PUBLIC_KEY_FILE`.
+`make admin-keys` creates `keys/admin_{private,public}.pem` (gitignored) and `make admin-token`
+prints a 1-hour token. Keep the private key off the server. With no public key configured the
+API answers 503 rather than letting requests through.
 
 ## Token revocation
 

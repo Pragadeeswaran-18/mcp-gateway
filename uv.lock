@@ -759,6 +759,7 @@ name = "policy-gateway"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "fastmcp" },
     { name = "pyjwt" },
@@ -776,6 +777,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=50.0.2" },
     { name = "fastapi", specifier = ">=0.143.0" },
     { name = "fastmcp", specifier = "==3.4.8" },
     { name = "pyjwt", specifier = ">=2.15.1" },

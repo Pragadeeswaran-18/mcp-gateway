@@ -5,6 +5,7 @@ description = "MCP policy gateway prototype"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "cryptography>=50.0.2",
     "fastapi>=0.143.0",
     "fastmcp==3.4.8",
     "pyjwt>=2.15.1",
