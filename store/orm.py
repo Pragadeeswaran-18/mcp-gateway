@@ -173,6 +173,11 @@ class TenantDB:
     def scope(self, tenant_id: int) -> TenantScope:
         return TenantScope(self.db, tenant_id)
 
+    async def ensure_ttl_index(self, collection: str, field: str) -> None:
+        """Delete documents once `field` (a date) has passed. TTL indexes must be
+        single-field, so this one does not lead with tenant_id; it only expires rows."""
+        await self.db[collection].create_index(field, expireAfterSeconds=0)
+
     async def ensure_indexes(
         self, indexes: Mapping[str, Sequence[Sequence[tuple[str, int]]]]
     ) -> None:

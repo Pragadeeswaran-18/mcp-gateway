@@ -1,5 +1,6 @@
 """Fixtures: in-process upstream, subprocess gateway, and per-user clients."""
 
+import contextlib
 import os
 import socket
 import sqlite3
@@ -7,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -15,6 +17,7 @@ import uvicorn
 from fastmcp import Client
 from mint_jwt import mint
 
+from store.mongo import MongoStore
 from upstream import server as upstream_server
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -140,3 +143,17 @@ def audit_rows(audit_db: Path):
             conn.close()
 
     return read
+
+
+MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+
+
+@pytest.fixture
+async def store():
+    s = MongoStore(MONGO_URL, f"policy_gateway_test_{uuid.uuid4().hex[:8]}")
+    try:
+        yield s
+    finally:
+        with contextlib.suppress(Exception):  # nothing to clean up if MongoDB is unreachable
+            await s._client.drop_database(s._tdb.db.name)
+        await s.close()

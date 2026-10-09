@@ -2,14 +2,14 @@
 
 Every method operates on the tenant set with store.tenant.use_tenant(); with none set it
 raises TenantError (fail closed).
-Collections: rules (key=tool), users (key=username), approvals (key=id), audit_events.
+Collections: rules (key=tool), users (key=username), approvals (key=id), audit_events, revoked_jtis (TTL on expires_at).
 """
 
 from typing import Any
 
 from pymongo import AsyncMongoClient
 
-from admin.models import ApprovalRequest, AuditEvent, ToolRule, User
+from admin.models import ApprovalRequest, AuditEvent, RevokedToken, ToolRule, User
 from store.orm import Repository, TenantDB
 from store.tenant import current_tenant
 
@@ -42,10 +42,14 @@ class MongoStore:
     def _audit(self) -> Repository[AuditEvent]:
         return self._scope().repo("audit_events", AuditEvent, None, append_only=True)
 
+    def _revoked(self) -> Repository[RevokedToken]:
+        return self._scope().repo("revoked_jtis", RevokedToken, "jti")
+
     async def init(self) -> None:
         """Create tenant-leading indexes. Making audit_events truly append-only also needs a
         MongoDB role without update/delete on that collection (see README)."""
         await self._tdb.ensure_indexes(INDEXES)
+        await self._tdb.ensure_ttl_index("revoked_jtis", "expires_at")
 
     async def close(self) -> None:
         await self._client.close()
@@ -82,6 +86,12 @@ class MongoStore:
             {"id": approval_id, "status": "pending"},
             {"status": "approved" if approved else "denied", "resolved_by": by},
         )
+
+    async def revoke_token(self, token: RevokedToken) -> None:
+        await self._revoked().put(token)
+
+    async def is_revoked(self, jti: str) -> bool:
+        return await self._revoked().get(jti) is not None
 
     async def append_audit(self, event: AuditEvent) -> None:
         await self._audit().insert(event)

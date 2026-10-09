@@ -2,7 +2,7 @@
 
 from typing import Any, Protocol
 
-from admin.models import ApprovalRequest, AuditEvent, ToolRule, User
+from admin.models import ApprovalRequest, AuditEvent, RevokedToken, ToolRule, User
 
 
 class PolicyStore(Protocol):
@@ -54,6 +54,14 @@ class PolicyStore(Protocol):
 
     async def resolve_approval(self, approval_id: str, approved: bool, by: str) -> bool:
         """Atomically move a pending request to approved/denied; False if not pending."""
+        ...
+
+    async def revoke_token(self, token: RevokedToken) -> None:
+        """Record a revoked jti; idempotent."""
+        ...
+
+    async def is_revoked(self, jti: str) -> bool:
+        """Whether this tenant has revoked `jti` (and the row has not yet expired)."""
         ...
 
     async def append_audit(self, event: AuditEvent) -> None:

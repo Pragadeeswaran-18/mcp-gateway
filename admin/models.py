@@ -60,6 +60,16 @@ class ApprovalRequest(BaseModel):
     resolved_by: str | None = None
 
 
+class RevokedToken(BaseModel):
+    """A revoked JWT, kept only until the token would have expired anyway (TTL index)."""
+
+    jti: str
+    human: str
+    revoked_by: str
+    revoked_at: datetime
+    expires_at: datetime  # the token's exp; MongoDB deletes the row after this
+
+
 class AuditEvent(BaseModel):
     """One gateway decision, tied to a human and an agent."""
 
@@ -67,6 +77,7 @@ class AuditEvent(BaseModel):
     human: str
     agent: str
     task_id: str
+    jti: str | None = None
     tool: str
     decision: str
     rule: str

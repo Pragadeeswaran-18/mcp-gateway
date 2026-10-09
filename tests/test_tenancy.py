@@ -1,8 +1,5 @@
 """Tenant isolation. The first half needs no database; the second half needs MongoDB."""
 
-import contextlib
-import os
-import uuid
 from datetime import UTC, datetime
 
 import httpx
@@ -14,9 +11,6 @@ from store.orm import AppendOnlyError, check_filter, from_doc, scope_filter, to_
 from store.registry import TenantRegistry
 from store.resolve import TenantMiddleware, subdomain_from_host
 from store.tenant import TenantError, current_tenant, use_tenant, validate_tenant_id
-
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-
 
 # --- pure unit tests -------------------------------------------------------------------
 
@@ -67,17 +61,6 @@ def test_doc_roundtrip_namespaces_id_and_strips_tenant():
 
 
 # --- MongoDB integration ----------------------------------------------------------------
-
-
-@pytest.fixture
-async def store():
-    s = MongoStore(MONGO_URL, f"policy_gateway_test_{uuid.uuid4().hex[:8]}")
-    try:
-        yield s
-    finally:
-        with contextlib.suppress(Exception):  # nothing to clean up if MongoDB is unreachable
-            await s._client.drop_database(s._tdb.db.name)
-        await s.close()
 
 
 async def test_same_key_in_two_tenants_is_isolated(store: MongoStore):

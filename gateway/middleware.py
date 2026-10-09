@@ -12,8 +12,10 @@ class PolicyMiddleware(Middleware):
         """Authenticate the caller and build a Session.
 
         Must: validate the JWT (HS256, GATEWAY_JWT_SECRET, exp), extract sub/agent_id/task_id,
-        store the Session where later hooks can read it, and reject the handshake when the
-        token is missing or invalid.
+        store the Session where later hooks can read it, check the token's tenant_id matches
+        the subdomain tenant and that its jti is not revoked (PolicyStore.is_revoked, fail
+        closed if the store is unreachable), and reject the handshake when the token is
+        missing or invalid.
         """
         raise NotImplementedError
 
@@ -28,7 +30,7 @@ class PolicyMiddleware(Middleware):
     async def on_call_tool(self, context: MiddlewareContext[Any], call_next: Any) -> Any:
         """Evaluate policy for the call, audit it, and forward or refuse.
 
-        Must: deny hidden/denied tools, refuse require_approval calls, reject conflicting
+        Must: re-check jti revocation, deny hidden/denied tools, refuse require_approval calls, reject conflicting
         or constraint-violating arguments, inject pinned values, write an audit event for
         every outcome, and ensure rejected calls never reach the upstream.
         """

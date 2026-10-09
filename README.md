@@ -49,6 +49,14 @@ Tenant ids are positive integers. Each request's tenant is resolved from the Hos
 a pure ASGI middleware to wrap the admin app and the gateway's HTTP app; unknown or inactive
 subdomains get 404. Register tenants with `TenantRegistry.create("acme")`.
 
+## Token revocation
+
+Tokens carry `jti` and an integer `tenant_id` (`scripts/mint_jwt.py alice [tenant_id]`).
+Revoked jtis live in the tenant-scoped `revoked_jtis` collection with a TTL index on
+`expires_at` (the token's `exp`), so rows disappear when the token would have expired anyway.
+The gateway checks `PolicyStore.is_revoked()` on initialize and on every call and must fail
+closed if MongoDB is unreachable. The admin route `POST /revocations/{jti}` is a stub.
+
 ## Mint a token
 
 ```
