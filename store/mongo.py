@@ -82,7 +82,7 @@ class MongoStore:
         return await self._approvals().filter({"status": status} if status else None)
 
     async def resolve_approval(self, approval_id: str, approved: bool, by: str) -> bool:
-        return await self._approvals().update_where(
+        return await self._approvals().edit(
             {"id": approval_id, "status": "pending"},
             {"status": "approved" if approved else "denied", "resolved_by": by},
         )

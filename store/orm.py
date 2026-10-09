@@ -125,7 +125,7 @@ class Repository[M: BaseModel]:
         )
         return res.deleted_count == 1
 
-    async def update_where(self, flt: Mapping[str, Any], changes: Mapping[str, Any]) -> bool:
+    async def edit(self, flt: Mapping[str, Any], changes: Mapping[str, Any]) -> bool:
         """Atomically $set `changes` on one matching document; return whether one matched."""
         check_filter(changes)
         res = await self._col.update_one(scope_filter(self._tenant, flt), {"$set": dict(changes)})
@@ -141,7 +141,7 @@ class AppendOnlyRepository[M: BaseModel](Repository[M]):
     async def delete(self, key: str) -> bool:
         raise AppendOnlyError("collection is append-only")
 
-    async def update_where(self, flt: Mapping[str, Any], changes: Mapping[str, Any]) -> bool:
+    async def edit(self, flt: Mapping[str, Any], changes: Mapping[str, Any]) -> bool:
         raise AppendOnlyError("collection is append-only")
 
 
