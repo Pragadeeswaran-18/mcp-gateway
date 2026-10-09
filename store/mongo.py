@@ -1,76 +1,90 @@
-"""MongoDB implementation of PolicyStore (pymongo AsyncMongoClient)."""
+"""MongoDB implementation of PolicyStore, tenant-scoped through store.orm.
+
+Every method operates on the tenant set with store.tenant.use_tenant(); with none set it
+raises TenantError (fail closed).
+Collections: rules (key=tool), users (key=username), approvals (key=id), audit_events.
+"""
 
 from typing import Any
 
+from pymongo import AsyncMongoClient
+
 from admin.models import ApprovalRequest, AuditEvent, ToolRule, User
+from store.orm import Repository, TenantDB
+from store.tenant import current_tenant
+
+INDEXES = {
+    "approvals": [[("status", 1)]],
+    "audit_events": [[("human", 1), ("ts", -1)], [("tool", 1), ("ts", -1)]],
+}
 
 
 class MongoStore:
-    """PolicyStore backed by MongoDB.
-
-    Collections: rules (_id = tool), users (_id = username), approvals, audit_events.
-    """
+    """PolicyStore backed by MongoDB."""
 
     def __init__(self, url: str, db_name: str) -> None:
-        """Create the client from MONGO_URL / MONGO_DB values; do not connect yet.
+        """Create the client; it connects lazily."""
+        self._client: AsyncMongoClient = AsyncMongoClient(url, serverSelectionTimeoutMS=5000)
+        self._tdb = TenantDB(self._client[db_name])
 
-        Must: use pymongo.AsyncMongoClient and keep the database handle on self.
-        """
-        raise NotImplementedError
+    def _scope(self):
+        return self._tdb.scope(current_tenant())
+
+    def _rules(self) -> Repository[ToolRule]:
+        return self._scope().repo("rules", ToolRule, "tool")
+
+    def _users(self) -> Repository[User]:
+        return self._scope().repo("users", User, "username")
+
+    def _approvals(self) -> Repository[ApprovalRequest]:
+        return self._scope().repo("approvals", ApprovalRequest, "id")
+
+    def _audit(self) -> Repository[AuditEvent]:
+        return self._scope().repo("audit_events", AuditEvent, None, append_only=True)
 
     async def init(self) -> None:
-        """Create indexes. Must also make audit_events append-only as far as MongoDB allows
-        (e.g. a dedicated DB user without update/delete privileges; document the setup)."""
-        raise NotImplementedError
+        """Create tenant-leading indexes. Making audit_events truly append-only also needs a
+        MongoDB role without update/delete on that collection (see README)."""
+        await self._tdb.ensure_indexes(INDEXES)
 
     async def close(self) -> None:
-        """Close the client."""
-        raise NotImplementedError
+        await self._client.close()
 
     async def list_rules(self) -> list[ToolRule]:
-        """See PolicyStore."""
-        raise NotImplementedError
+        return await self._rules().find()
 
     async def get_rule(self, tool: str) -> ToolRule | None:
-        """See PolicyStore."""
-        raise NotImplementedError
+        return await self._rules().get(tool)
 
     async def put_rule(self, rule: ToolRule) -> None:
-        """See PolicyStore."""
-        raise NotImplementedError
+        await self._rules().put(rule)
 
     async def delete_rule(self, tool: str) -> bool:
-        """See PolicyStore."""
-        raise NotImplementedError
+        return await self._rules().delete(tool)
 
     async def list_users(self) -> list[User]:
-        """See PolicyStore."""
-        raise NotImplementedError
+        return await self._users().find()
 
     async def put_user(self, user: User) -> None:
-        """See PolicyStore."""
-        raise NotImplementedError
+        await self._users().put(user)
 
     async def delete_user(self, username: str) -> bool:
-        """See PolicyStore."""
-        raise NotImplementedError
+        return await self._users().delete(username)
 
     async def create_approval(self, req: ApprovalRequest) -> None:
-        """See PolicyStore."""
-        raise NotImplementedError
+        await self._approvals().insert(req)
 
     async def list_approvals(self, status: str | None = None) -> list[ApprovalRequest]:
-        """See PolicyStore."""
-        raise NotImplementedError
+        return await self._approvals().find({"status": status} if status else None)
 
     async def resolve_approval(self, approval_id: str, approved: bool, by: str) -> bool:
-        """See PolicyStore."""
-        raise NotImplementedError
+        return await self._approvals().update_where(
+            {"id": approval_id, "status": "pending"},
+            {"status": "approved" if approved else "denied", "resolved_by": by},
+        )
 
     async def append_audit(self, event: AuditEvent) -> None:
-        """See PolicyStore."""
-        raise NotImplementedError
+        await self._audit().insert(event)
 
     async def query_audit(self, filters: dict[str, Any], limit: int = 100) -> list[AuditEvent]:
-        """See PolicyStore."""
-        raise NotImplementedError
+        return await self._audit().find(filters, sort=[("ts", -1)], limit=limit)

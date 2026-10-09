@@ -36,6 +36,15 @@ make mongo      # docker compose up -d mongo
 make admin      # uv run python -m admin.app         (port 8081)
 ```
 
+## MongoDB and tenancy
+
+Point `MONGO_URL` at any MongoDB 6+: `make mongo` (needs Docker), a local Community install,
+or a free Atlas cluster. `store/orm.py` is a small tenant-scoped mapper: every document carries
+`tenant_id` and an `_id` of `<tenant>:<key>`, every query is wrapped with the tenant clause,
+and callers cannot mention `tenant_id`/`_id` in filters. The active tenant comes from
+`store.tenant.use_tenant()`; with none set, storage raises `TenantError`. The admin auth
+dependency and the gateway's `on_initialize` must set it from the caller's identity.
+
 ## Mint a token
 
 ```
